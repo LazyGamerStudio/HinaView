@@ -1,0 +1,18 @@
+// File type icons for HinaView
+// Resource IDs 101-115 for file type icons
+
+101 ICON "webp.ico"
+102 ICON "avif.ico"
+103 ICON "heif.ico"
+104 ICON "heic.ico"
+105 ICON "jxl.ico"
+106 ICON "jpeg.ico"
+107 ICON "png.ico"
+108 ICON "gif.ico"
+109 ICON "bmp.ico"
+110 ICON "tiff.ico"
+111 ICON "tga.ico"
+112 ICON "dds.ico"
+113 ICON "exr.ico"
+114 ICON "hdr.ico"
+115 ICON "pnm.ico"
