@@ -1,0 +1,58 @@
+[package]
+name = "HinaView"
+version = "1.0.0-RC1"
+edition = "2024"
+license = "MIT"
+description = "High-Performance GPU-Accelerated Image Viewer"
+readme = "README.md"
+
+[dependencies]
+wgpu = "27.0"
+egui = "0.33"
+egui-wgpu = "0.33"
+egui-winit = "0.33"
+rayon = "1.11.0"
+crossbeam = "0.8.4"
+num_cpus = "1.17.0"
+zip = "8.1.0"
+image = { version = "0.25.9", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp", "tiff", "tga", "dds", "exr", "hdr", "pnm", "ico"] }
+anyhow = "1.0.102"
+glam = "0.32.0"
+bytemuck = { version = "1.25.0", features = ["derive"] }
+fast_image_resize = { version = "6.0.0", features = ["image"] }
+winit = "0.30.12"
+pollster = "0.4.0"
+parking_lot = "0.12.5"
+lru = "0.16.3"
+natord = "1.0.9"
+libwebp-sys = "0.14.2"
+turbojpeg-sys = "1.1.1"
+imagesize = "0.13.0"
+gif = "0.14.1"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2.4"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0"
+dirs = "6.0.0"
+fontdb = "0.23.0"
+kamadak-exif = "0.6.1"
+windows-sys = { version = "0.61.2", features = ["Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_UI_ColorSystem", "Win32_System_Console", "Win32_Graphics_Dwm", "Win32_Foundation", "Win32_Globalization", "Win32_System_Registry", "Win32_System_LibraryLoader", "Win32_UI_Shell", "Win32_System_Pipes", "Win32_System_Threading", "Win32_System_IO", "Win32_System_WindowsProgramming"] }
+lazy_static = "1.5.0"
+rusqlite = { version = "0.37.0", features = ["bundled"] }
+crabby-avif = { path = "./external/CrabbyAvif", default-features = false, features = ["dav1d", "heic"] }
+libjxl-sys = { path = "./external/CrabbyAvif/sys/libjxl-sys", features = ["libjxl"] }
+rfd = "0.15"
+reqwest = { version = "0.12", features = ["json", "blocking"] }
+semver = "1.0"
+
+[build-dependencies]
+winres = "0.1.12"
+embed-resource = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true # Remove symbols for smaller binary
+opt-level = 3

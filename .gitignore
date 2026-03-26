@@ -1,0 +1,10 @@
+/target
+/updater/target/
+/benchmark
+/external/*
+!/external/*.ps1
+/test_file
+/docs
+/update_temp
+/tools
+*.flag
