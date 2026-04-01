@@ -19,12 +19,28 @@ impl App {
                     self.nav.view.layout_mode,
                     crate::types::LayoutMode::VerticalScroll
                 ) {
-                    if is_pressed && !is_repeat {
-                        self.queue_webtoon_scroll_page_delta(-1, true);
-                    }
-                    if is_pressed {
+                    if !is_pressed {
+                        self.webtoon_fast_hold_up = false;
+                        if !self.webtoon_fast_hold_down {
+                            self.webtoon_fast_hold_started_at = None;
+                        }
                         return;
                     }
+                    if is_repeat {
+                        self.nav.webtoon_scroll_target_y = None;
+                        if !self.webtoon_fast_hold_up {
+                            self.webtoon_fast_hold_started_at = Some(std::time::Instant::now());
+                        }
+                        self.webtoon_fast_hold_up = true;
+                        self.webtoon_fast_hold_down = false;
+                        self.show_quick_page_indicator();
+                        return;
+                    }
+                    self.webtoon_fast_hold_up = false;
+                    self.webtoon_fast_hold_down = false;
+                    self.webtoon_fast_hold_started_at = None;
+                    self.queue_webtoon_scroll_page_delta(-1, true);
+                    return;
                 }
                 self.nav.navigate_step(-1, is_repeat, is_pressed);
                 let visible = self.get_visible_pages();
@@ -55,12 +71,28 @@ impl App {
                     self.nav.view.layout_mode,
                     crate::types::LayoutMode::VerticalScroll
                 ) {
-                    if is_pressed && !is_repeat {
-                        self.queue_webtoon_scroll_page_delta(1, true);
-                    }
-                    if is_pressed {
+                    if !is_pressed {
+                        self.webtoon_fast_hold_down = false;
+                        if !self.webtoon_fast_hold_up {
+                            self.webtoon_fast_hold_started_at = None;
+                        }
                         return;
                     }
+                    if is_repeat {
+                        self.nav.webtoon_scroll_target_y = None;
+                        if !self.webtoon_fast_hold_down {
+                            self.webtoon_fast_hold_started_at = Some(std::time::Instant::now());
+                        }
+                        self.webtoon_fast_hold_down = true;
+                        self.webtoon_fast_hold_up = false;
+                        self.show_quick_page_indicator();
+                        return;
+                    }
+                    self.webtoon_fast_hold_down = false;
+                    self.webtoon_fast_hold_up = false;
+                    self.webtoon_fast_hold_started_at = None;
+                    self.queue_webtoon_scroll_page_delta(1, true);
+                    return;
                 }
                 self.nav.navigate_step(1, is_repeat, is_pressed);
                 let visible = self.get_visible_pages();

@@ -14,15 +14,23 @@ impl App {
                 self.move_hold_up,
                 self.move_hold_down,
             ),
+            fast_holds: (self.webtoon_fast_hold_up, self.webtoon_fast_hold_down),
+            fast_hold_elapsed_sec: self
+                .webtoon_fast_hold_started_at
+                .map(|started| started.elapsed().as_secs_f32()),
             scroll_speed: self.settings_state.webtoon_scroll_speed_px_per_sec,
             dt_sec,
             window_height: self.window_size.1 as f32,
         });
+        let was_fast_scrolling = self.webtoon_fast_hold_up || self.webtoon_fast_hold_down;
 
         if changed {
             // Check visibility after scroll.
             // Note: The controller doesn't have access to the full pipeline, but App does.
             self.request_visible_pages_for_current_layout(false);
+            if was_fast_scrolling {
+                self.show_quick_page_indicator();
+            }
         }
 
         changed

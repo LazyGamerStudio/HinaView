@@ -105,7 +105,7 @@ pub fn render_preference_section(
             ui.label(&lp.webtoon_scroll_speed);
             let mut webtoon_speed = snapshot.webtoon_scroll_speed_px_per_sec;
             if ui
-                .add(egui::Slider::new(&mut webtoon_speed, 100.0..=1600.0).text("px/s"))
+                .add(egui::Slider::new(&mut webtoon_speed, 100.0..=3000.0).text("px/s"))
                 .changed()
             {
                 actions.push(UiAction::SetWebtoonScrollSpeed(webtoon_speed));

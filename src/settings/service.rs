@@ -21,7 +21,7 @@ pub fn clamp_auto_hide_sec(value: u32) -> u32 {
 }
 
 pub fn clamp_webtoon_scroll_speed_px_per_sec(value: f32) -> f32 {
-    value.clamp(100.0, 1600.0)
+    value.clamp(100.0, 3000.0)
 }
 
 pub fn normalize(mut s: SettingsState, gpu_cap_mb: usize) -> SettingsState {

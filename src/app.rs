@@ -102,6 +102,9 @@ pub struct App {
     move_hold_right: bool,
     move_hold_up: bool,
     move_hold_down: bool,
+    webtoon_fast_hold_up: bool,
+    webtoon_fast_hold_down: bool,
+    webtoon_fast_hold_started_at: Option<Instant>,
     /// Indicates that the visibility of pages needs to be recalculated.
     pub needs_visible_check: bool,
     /// The current Windows accent color for UI consistency.
@@ -135,6 +138,12 @@ impl App {
             || self.warning_overlay.is_visible()
             || self.nav.is_fast_navigating()
             || self.nav.webtoon_scroll_target_y.is_some()
+            || self.move_hold_left
+            || self.move_hold_right
+            || self.move_hold_up
+            || self.move_hold_down
+            || self.webtoon_fast_hold_up
+            || self.webtoon_fast_hold_down
             || !self.upload_queue.is_empty()
             || self.scheduler.has_any_inflight()
     }
@@ -213,6 +222,9 @@ impl App {
             move_hold_right: false,
             move_hold_up: false,
             move_hold_down: false,
+            webtoon_fast_hold_up: false,
+            webtoon_fast_hold_down: false,
+            webtoon_fast_hold_started_at: None,
             needs_visible_check: true,
             accent_color,
             loading_spinner_start: None,

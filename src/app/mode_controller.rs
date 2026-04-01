@@ -102,6 +102,9 @@ impl App {
         self.move_hold_right = false;
         self.move_hold_up = false;
         self.move_hold_down = false;
+        self.webtoon_fast_hold_up = false;
+        self.webtoon_fast_hold_down = false;
+        self.webtoon_fast_hold_started_at = None;
 
         // Always reset image offset when changing layout modes to prevent huge drifting offsets.
         self.nav.view.image_offset = [0.0, 0.0];

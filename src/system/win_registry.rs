@@ -35,6 +35,11 @@ fn get_app_exe_path() -> Option<PathBuf> {
     }
 }
 
+fn get_app_icon_dir() -> Option<PathBuf> {
+    let exe_path = get_app_exe_path()?;
+    exe_path.parent().map(|p| p.join("icon_win"))
+}
+
 /// Convert a Rust string to a null-terminated wide string (UTF-16)
 fn to_wide_null(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(Some(0)).collect()
@@ -150,7 +155,7 @@ pub fn register_ext(ext: &str) -> Result<(), String> {
         .ok_or("Failed to get executable path")?
         .to_string_lossy()
         .to_string();
-    let icon_path = get_icon_resource_for_ext(ext).unwrap_or_else(|| exe_path_str.clone());
+    let icon_path = get_icon_path_for_ext(ext).unwrap_or_else(|| exe_path_str.clone());
 
     // 1. Map extension to ProgID
     set_reg_value(
@@ -182,13 +187,16 @@ pub fn register_ext(ext: &str) -> Result<(), String> {
         &command,
     )?;
 
-    // 5. Add to OpenWithProgids for the extension
-    // This makes the app show up in the "Open with" recommended list even if not default.
-    set_reg_value_named(
+    // 5. Add to OpenWithProgids/OpenWithList for the extension.
+    // Windows shell is more reliable when both tables are populated.
+    let open_with_progids_key = format!("Software\\Classes\\.{}\\OpenWithProgids", ext_no_dot);
+    set_empty_reg_value_named(HKEY_CURRENT_USER, &open_with_progids_key, &prog_id)?;
+
+    let open_with_list_key = format!("Software\\Classes\\.{}\\OpenWithList", ext_no_dot);
+    set_empty_reg_value_named(
         HKEY_CURRENT_USER,
-        &format!("Software\\Classes\\.{}", ext_no_dot),
-        "OpenWithProgids",
-        &prog_id,
+        &open_with_list_key,
+        &exe_name_from_path()?,
     )?;
 
     Ok(())
@@ -225,33 +233,32 @@ pub fn unregister_ext(ext: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Get the icon resource for a specific extension
-/// Returns the icon path as "HinaView.exe,RESOURCE_ID"
-fn get_icon_resource_for_ext(ext: &str) -> Option<String> {
-    let exe_path_str = get_app_exe_path()?.to_string_lossy().to_string();
-
-    let resource_id = match ext.trim_start_matches('.').to_lowercase().as_str() {
-        "webp" => 101,
-        "avif" => 102,
-        "heif" => 103,
-        "heic" => 104,
-        "jxl" => 105,
-        "jpg" | "jpeg" => 106,
-        "png" => 107,
-        "gif" => 108,
-        "bmp" => 109,
-        "tiff" | "tif" => 110,
-        "tga" => 111,
-        "dds" => 112,
-        "exr" => 113,
-        "hdr" => 114,
-        "pnm" => 115,
-        "ico" => 116,
-        "cbz" => 201,
+/// Get the icon file path for a specific extension.
+/// Returns the path as "...\icon_win\name.ico,0".
+fn get_icon_path_for_ext(ext: &str) -> Option<String> {
+    let icon_dir = get_app_icon_dir()?;
+    let icon_file = match ext.trim_start_matches('.').to_lowercase().as_str() {
+        "webp" => "webp.ico",
+        "avif" => "avif.ico",
+        "heif" => "heif.ico",
+        "heic" => "heic.ico",
+        "jxl" => "jxl.ico",
+        "jpg" | "jpeg" => "jpeg.ico",
+        "png" => "png.ico",
+        "gif" => "gif.ico",
+        "bmp" => "bmp.ico",
+        "tiff" | "tif" => "tiff.ico",
+        "tga" => "tga.ico",
+        "dds" => "dds.ico",
+        "exr" => "exr.ico",
+        "hdr" => "hdr.ico",
+        "pnm" => "pnm.ico",
+        "ico" => "ico.ico",
+        "cbz" => "cbz.ico",
         _ => return None,
     };
 
-    Some(format!("{},-{}", exe_path_str, resource_id))
+    Some(format!("{},0", icon_dir.join(icon_file).to_string_lossy()))
 }
 
 /// Update file associations
@@ -268,6 +275,7 @@ pub fn update_associations(
     for ext in exts_to_associate {
         register_ext(ext)?;
     }
+    notify_shell_change();
     Ok(())
 }
 
@@ -328,6 +336,65 @@ fn set_reg_value_named(root: HKEY, subkey: &str, name: &str, value: &str) -> Res
         }
     }
     Ok(())
+}
+
+/// Helper function to set a named registry value with no payload.
+fn set_empty_reg_value_named(root: HKEY, subkey: &str, name: &str) -> Result<(), String> {
+    let subkey_wide = to_wide_null(subkey);
+    let mut hkey: HKEY = std::ptr::null_mut();
+    let mut disposition = 0;
+
+    unsafe {
+        // SAFETY: All UTF-16 buffers are null-terminated and remain alive for the duration of
+        // these registry API calls. `hkey` is closed before the block exits.
+        let result = RegCreateKeyExW(
+            root,
+            subkey_wide.as_ptr(),
+            0,
+            std::ptr::null_mut(),
+            REG_OPTION_NON_VOLATILE,
+            KEY_SET_VALUE,
+            std::ptr::null(),
+            &mut hkey,
+            &mut disposition,
+        );
+
+        if result != ERROR_SUCCESS {
+            return Err(format!(
+                "Failed to create/open key '{}': {}",
+                subkey, result
+            ));
+        }
+
+        let name_wide = to_wide_null(name);
+        let result = RegSetValueExW(
+            hkey,
+            name_wide.as_ptr(),
+            0,
+            windows_sys::Win32::System::Registry::REG_NONE,
+            std::ptr::null(),
+            0,
+        );
+
+        RegCloseKey(hkey);
+
+        if result != ERROR_SUCCESS {
+            return Err(format!(
+                "Failed to set empty value '{}' in '{}': {}",
+                name, subkey, result
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn exe_name_from_path() -> Result<String, String> {
+    let exe_path = get_app_exe_path().ok_or("Failed to get executable path")?;
+    let exe_name = exe_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or("Failed to resolve executable file name")?;
+    Ok(exe_name.to_string())
 }
 
 /// Register context menu for a specific extension using a specific key path
@@ -487,6 +554,10 @@ pub fn register_as_app() -> Result<(), String> {
     let exe_path_str = exe_path.to_string_lossy().to_string();
 
     let app_key = format!("Software\\Classes\\Applications\\{}", exe_name);
+    let app_icon = get_app_icon_dir()
+        .map(|dir| dir.join("hinaview.ico").to_string_lossy().to_string())
+        .map(|path| format!("{},0", path))
+        .unwrap_or_else(|| format!("{},0", exe_path_str));
 
     // 1. Basic open command
     set_reg_value(
@@ -494,6 +565,12 @@ pub fn register_as_app() -> Result<(), String> {
         &format!("{}\\shell\\open\\command", app_key),
         &format!("\"{}\" \"%1\"", exe_path_str),
     )?;
+    set_reg_value(
+        HKEY_CURRENT_USER,
+        &format!("{}\\DefaultIcon", app_key),
+        &app_icon,
+    )?;
+    set_reg_value_named(HKEY_CURRENT_USER, &app_key, "FriendlyAppName", "HinaView")?;
 
     // 2. Set Capabilities for modern Windows Default Apps integration
     let capabilities_key = "Software\\HinaView\\Capabilities";

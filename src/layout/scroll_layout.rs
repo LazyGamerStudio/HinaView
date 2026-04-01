@@ -6,7 +6,9 @@ use crate::view::ViewState;
 pub fn compute(document: &Document, _view: &ViewState) -> LayoutResult {
     let mut placements = Vec::new();
     let gap = 0.0f32;
-    let mut current_y = 0.0f32;
+    let mut next_top_y: Option<f32> = None;
+    let mut min_y = 0.0f32;
+    let mut max_y = 0.0f32;
     let baseline_w = document
         .pages
         .iter()
@@ -20,17 +22,23 @@ pub fn compute(document: &Document, _view: &ViewState) -> LayoutResult {
         let scale = baseline_w / src_w;
         let w = baseline_w;
         let h = src_h * scale;
+        let top_y = next_top_y.unwrap_or(h * 0.5);
+        let bottom_y = top_y - h;
+
         placements.push(PagePlacement {
             page_index: page_idx,
-            position: [-w * 0.5, current_y - h * 0.5],
+            position: [-w * 0.5, bottom_y],
             size: [w, h],
         });
-        current_y -= h + gap;
+
+        min_y = min_y.min(bottom_y);
+        max_y = max_y.max(top_y);
+        next_top_y = Some(bottom_y - gap);
     }
 
     LayoutResult {
         placements,
-        total_width: 0.0,
-        total_height: current_y.abs(),
+        total_width: baseline_w,
+        total_height: max_y - min_y,
     }
 }

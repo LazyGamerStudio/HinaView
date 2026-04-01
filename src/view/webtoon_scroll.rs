@@ -3,16 +3,61 @@ use crate::view::NavigationController;
 pub struct WebtoonScrollContext<'a> {
     pub nav: &'a mut NavigationController,
     pub holds: (bool, bool, bool, bool), // left, right, up, down
+    pub fast_holds: (bool, bool),        // up, down
+    pub fast_hold_elapsed_sec: Option<f32>,
     pub scroll_speed: f32,
     pub dt_sec: f32,
     pub window_height: f32,
 }
 
+fn clamp_webtoon_camera_y(
+    nav: &NavigationController,
+    window_height: f32,
+    camera_y: f32,
+) -> Option<f32> {
+    let layout = nav.layout.as_ref()?;
+    if layout.placements.is_empty() {
+        return None;
+    }
+
+    let top_y = layout
+        .placements
+        .iter()
+        .map(|p| p.position[1] + p.size[1])
+        .fold(f32::NEG_INFINITY, f32::max);
+    let bottom_y = layout
+        .placements
+        .iter()
+        .map(|p| p.position[1])
+        .fold(f32::INFINITY, f32::min);
+
+    let half_h = window_height / (2.0 * nav.view.zoom.max(0.0001));
+    let min_center_y = bottom_y + half_h;
+    let max_center_y = top_y - half_h;
+
+    Some(if min_center_y > max_center_y {
+        (top_y + bottom_y) * 0.5
+    } else {
+        camera_y.clamp(min_center_y, max_center_y)
+    })
+}
+
+fn clamp_webtoon_offset_y(nav: &mut NavigationController, window_height: f32) -> bool {
+    let current_camera_y = nav.view.pan[1] + nav.view.image_offset[1];
+    let Some(clamped_camera_y) = clamp_webtoon_camera_y(nav, window_height, current_camera_y)
+    else {
+        return false;
+    };
+    let clamped_offset_y = clamped_camera_y - nav.view.pan[1];
+    let changed = (nav.view.image_offset[1] - clamped_offset_y).abs() > f32::EPSILON;
+    nav.view.image_offset[1] = clamped_offset_y;
+    changed
+}
+
 pub fn process_webtoon_scroll_controller(ctx: WebtoonScrollContext) -> bool {
     let zoom = ctx.nav.view.zoom.max(0.0001);
-    let speed_px_per_sec = ctx.scroll_speed;
-    let delta_world = (speed_px_per_sec * ctx.dt_sec) / zoom;
     let (left, right, up, down) = ctx.holds;
+    let (fast_up, fast_down) = ctx.fast_holds;
 
     let hold_x = match (left, right) {
         (true, false) => -1.0,
@@ -24,6 +69,25 @@ pub fn process_webtoon_scroll_controller(ctx: WebtoonScrollContext) -> bool {
         (false, true) => -1.0,
         _ => 0.0,
     };
+    let fast_hold_y = match (fast_up, fast_down) {
+        (true, false) => 1.0,
+        (false, true) => -1.0,
+        _ => 0.0,
+    };
+    let effective_hold_y = if fast_hold_y != 0.0 {
+        fast_hold_y
+    } else {
+        hold_y
+    };
+    let speed_multiplier = if fast_hold_y != 0.0 {
+        let t = ctx.fast_hold_elapsed_sec.unwrap_or(0.0).max(0.0);
+        let normalized = ((1.0 + t).ln() / (6.0f32).ln()).clamp(0.0, 1.0);
+        1.0 + 4.0 * normalized
+    } else {
+        1.0
+    };
+    let speed_px_per_sec = ctx.scroll_speed * speed_multiplier;
+    let delta_world = (speed_px_per_sec * ctx.dt_sec) / zoom;
 
     if !matches!(
         ctx.nav.view.layout_mode,
@@ -39,11 +103,12 @@ pub fn process_webtoon_scroll_controller(ctx: WebtoonScrollContext) -> bool {
     }
 
     let mut changed = false;
-    let hold_dir = hold_y;
+    let hold_dir = effective_hold_y;
 
     if hold_dir != 0.0 {
         ctx.nav.webtoon_scroll_target_y = None;
         ctx.nav.view.image_offset[1] += hold_dir * delta_world;
+        clamp_webtoon_offset_y(ctx.nav, ctx.window_height);
         ctx.nav.refresh_camera();
         changed = true;
     }
@@ -60,6 +125,7 @@ pub fn process_webtoon_scroll_controller(ctx: WebtoonScrollContext) -> bool {
         } else {
             ctx.nav.view.image_offset[1] = current + diff * 0.24;
         }
+        clamp_webtoon_offset_y(ctx.nav, ctx.window_height);
         ctx.nav.refresh_camera();
         changed = true;
     }
@@ -135,7 +201,9 @@ pub fn queue_webtoon_scroll_to_page_controller(
         return;
     };
     let target_center_y = placement.position[1] + placement.size[1] * 0.5;
-    nav.webtoon_scroll_target_y = Some(target_center_y - nav.view.pan[1]);
+    let clamped_center_y =
+        clamp_webtoon_camera_y(nav, 0.0, target_center_y).unwrap_or(target_center_y);
+    nav.webtoon_scroll_target_y = Some(clamped_center_y - nav.view.pan[1]);
     nav.target_page = Some(page);
 }
 
